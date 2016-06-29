@@ -1,0 +1,22 @@
+[
+    {
+        "merged": "C:\\Users\\nick\\AndroidStudioProjects\\BasicNotifications1\\Application\\build\\intermediates\\res\\merged\\debug\\drawable-hdpi-v4\\ic_stat_notification.png",
+        "source": "C:\\Users\\nick\\AndroidStudioProjects\\BasicNotifications1\\Application\\src\\main\\res\\drawable-hdpi\\ic_stat_notification.png"
+    },
+    {
+        "merged": "C:\\Users\\nick\\AndroidStudioProjects\\BasicNotifications1\\Application\\build\\intermediates\\res\\merged\\debug\\drawable-hdpi-v4\\tile.9.png",
+        "source": "C:\\Users\\nick\\AndroidStudioProjects\\BasicNotifications1\\Application\\src\\main\\res\\drawable-hdpi\\tile.9.png"
+    },
+    {
+        "merged": "C:\\Users\\nick\\AndroidStudioProjects\\BasicNotifications1\\Application\\build\\intermediates\\res\\merged\\debug\\drawable-hdpi-v4\\no_connection.png",
+        "source": "C:\\Users\\nick\\AndroidStudioProjects\\BasicNotifications1\\Application\\src\\main\\res\\drawable-hdpi\\no_connection.png"
+    },
+    {
+        "merged": "C:\\Users\\nick\\AndroidStudioProjects\\BasicNotifications1\\Application\\build\\intermediates\\res\\merged\\debug\\drawable-hdpi-v4\\ic_launcher.png",
+        "source": "C:\\Users\\nick\\AndroidStudioProjects\\BasicNotifications1\\Application\\src\\main\\res\\drawable-hdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\nick\\AndroidStudioProjects\\BasicNotifications1\\Application\\build\\intermediates\\res\\merged\\debug\\drawable-hdpi-v4\\connected.png",
+        "source": "C:\\Users\\nick\\AndroidStudioProjects\\BasicNotifications1\\Application\\src\\main\\res\\drawable-hdpi\\connected.png"
+    }
+]
