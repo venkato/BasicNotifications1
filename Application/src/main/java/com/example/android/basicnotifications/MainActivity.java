@@ -28,17 +28,50 @@ public class MainActivity extends Activity {
      * unique system-wide.
      */
     public static final int NOTIFICATION_ID = 1;
+    final Object monitor = new Object();
+    volatile boolean linkOk = true;
+    volatile String lastErrorMsg;
+    volatile boolean start = false;
+    volatile Thread thread;
+    volatile Thread monitorThread;
+    volatile Thread readInThread;
+    volatile Thread readErrThread;
+    volatile boolean inProgress = false;
+    long sleepTime = 3000;
+    long maxWaitTime = 3000;
+    volatile ByteArrayOutputStream in;
+    volatile ByteArrayOutputStream err;
+    volatile Date lastRunTime;
+    volatile Process process;
+    private volatile InputStream inI, errI;
 
-    boolean linkOk = true;
+    /**
+     * Read all bytes from input stream.
+     *
+     * @param in
+     * @param bufferSize
+     * @return read bytes
+     * @throws IOException
+     */
+    public static byte[] readAllBytesFromInpustStream(final InputStream in,
+                                                      final int bufferSize, ByteArrayOutputStream out) throws IOException {
+        // TODO correct method name
+        final byte[] buffer = new byte[bufferSize];
+        // final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        int readBytes;
+        while ((readBytes = in.read(buffer)) > 0) {
+            out.write(buffer, 0, readBytes);
+        }
+        return out.toByteArray();
+    }
 
-    String lastErrorMsg;
-
-    boolean start = false;
-
-    Thread thread;
-
-    boolean inProgress = false;
-
+    /**
+     * Read all bytes from input stream with buffer sise = 8192 bytes.
+     */
+    public static byte[] readAllBytesFromInpustStream(final InputStream in, ByteArrayOutputStream out)
+            throws IOException {
+        return readAllBytesFromInpustStream(in, 8192, out);
+    }
 
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -51,7 +84,7 @@ public class MainActivity extends Activity {
                                                  TextView lastRun = (TextView) findViewById(R.id.lastrun);
                                                  lastRun.setText("Last run = "+lastRunTime+ ", in progress = "+inProgress);
                                                  TextView textView = (TextView) findViewById(R.id.pingOut);
-                                                 textView.setText(in + " " + err);
+                                                 textView.setText(new String(in.toByteArray()) + " " + new String(err.toByteArray()));
                                              }
                                          }
         )        ;
@@ -60,33 +93,11 @@ public class MainActivity extends Activity {
 
             @Override
             public void onClick(View v) {
-                if ("START".equals(stopStartButton.getText())) {
-                    start = true;
-                } else {
-                    start = false;
-                }
+                start = "START".equals(stopStartButton.getText());
                 stopStartButton.setText(start ? "STOP" : "START");
                 if (start) {
+                    startThreads();
 
-                    thread = new Thread("Nik ping thread") {
-                        @Override
-                        public void run() {
-                            try {
-                                while (true) {
-                                    if (this != thread) {
-                                        break;
-                                    }
-                                    if (!start) {
-                                        break;
-                                    }
-                                    mainThread();
-                                }
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    };
-                    thread.start();
                 }
             }
         });
@@ -94,61 +105,126 @@ public class MainActivity extends Activity {
 
     }
 
-    String in;
-    String err;
-    Date lastRunTime;
+    private void startThreads() {
+        thread = new CustomThread("Nik ping thread") {
+
+            @Override
+            public boolean isEnable() {
+                if (this != thread) {
+                    return false;
+                }
+                return start;
+            }
+
+            @Override
+            public void doJob() throws Exception {
+                mainThread();
+            }
+        };
+        thread.start();
+        monitorThread = new CustomThread("Nik monitor thread") {
+
+            @Override
+            public boolean isEnable() {
+                if (this != monitorThread) {
+                    return false;
+                }
+                return start;
+            }
+
+            @Override
+            public void doJob() throws Exception {
+                monitorThread();
+
+            }
+        };
+        monitorThread.start();
+        readErrThread = new CustomThread("Nik error read thread") {
+
+            @Override
+            public boolean isEnable() {
+                if (this != readErrThread) {
+                    return false;
+                }
+                return start;
+            }
+
+            @Override
+            public void doJob() throws Exception {
+                readAllBytesFromInpustStream(errI, err);
+
+            }
+        };
+        readErrThread.start();
+        readInThread = new CustomThread("Nik error read thread") {
+
+            @Override
+            public boolean isEnable() {
+                if (this != readInThread) {
+                    return false;
+                }
+                return start;
+            }
+
+            @Override
+            public void doJob() throws Exception {
+                readAllBytesFromInpustStream(inI, in);
+
+            }
+        };
+        readInThread.start();
+    }
+
+    private void monitorThread() {
+        long timeDiff = lastRunTime.getTime() - System.currentTimeMillis();
+        if (inProgress && timeDiff > maxWaitTime) {
+            sendNotificationNik(false, "hangs " + lastRunTime + " " + process);
+        }
+    }
+
+    private void readOutput(InputStream in, ByteArrayOutputStream out) throws Exception {
+        if (in != null) {
+            try {
+                readAllBytesFromInpustStream(in, out);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        synchronized (monitor) {
+            monitor.wait(3000);
+        }
+    }
 
     private void mainThread() throws Exception {
         //String[] ping = {"ping","-c","1","-W","1000","ya.ru"};
         inProgress = true;
         lastRunTime = new Date();
         String ping = "ping -c 1 -W 1000 ya.ru";
-        Process process = Runtime.getRuntime().exec(ping);
-        int exitCode = process.waitFor();
-        linkOk = exitCode == 0;
-        in = new String(readAllBytesFromInpustStream(process.getInputStream()));
-        err = new String(readAllBytesFromInpustStream(process.getErrorStream()));
+        in = new ByteArrayOutputStream();
+        err = new ByteArrayOutputStream();
+        process = Runtime.getRuntime().exec(ping);
+        inI = process.getInputStream();
+        errI = process.getErrorStream();
+
         // +" "+in+" "+err
         inProgress = false;
-        sendNotificationNik(linkOk, in + " " + err + " link ok = " + linkOk);
-
+        process = null;
+        int exitCode = process.waitFor();
+        linkOk = exitCode == 0;
+        synchronized (monitor) {
+            monitor.notifyAll();
+        }
+        Thread.currentThread().sleep(1000);
+        sendNotificationNik(linkOk, new String(in.toByteArray()) + " " + new String(err.toByteArray()) + " link ok = " + linkOk);
+        //inI.close();
+        //errI.close();
 //                        sendNotificationNik(linkOk,new Date()+" link ok = "+linkOk);
         if (!start) {
             return;
         }
-        Thread.sleep(3000);
+        Thread.sleep(sleepTime);
 
     }
-
-
-    /**
-     * Read all bytes from input stream.
-     *
-     * @param in
-     * @param bufferSize
-     * @return read bytes
-     * @throws IOException
-     */
-    public static byte[] readAllBytesFromInpustStream(final InputStream in,
-                                                      final int bufferSize) throws IOException {
-        // TODO correct method name
-        final byte[] buffer = new byte[bufferSize];
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        int readBytes;
-        while ((readBytes = in.read(buffer)) > 0) {
-            out.write(buffer, 0, readBytes);
-        }
-        return out.toByteArray();
-    }
-
-    /**
-     * Read all bytes from input stream with buffer sise = 8192 bytes.
-     */
-    public static byte[] readAllBytesFromInpustStream(final InputStream in)
-            throws IOException {
-        return readAllBytesFromInpustStream(in, 8192);
-    }
-
 
     private String readInputStream(InputStream in) {
         return null;
